@@ -2,6 +2,7 @@ package repo
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 type Repository interface {
 	PrivateKey() (crypto.PrivKey, error)
 	PeerStoragePath() (string, error)
+	SaveKey(key string) error
 }
 
 type repositoryImpl struct {
@@ -63,6 +65,25 @@ func (impl *repositoryImpl) checkRootPath() error {
 	return os.MkdirAll(impl.rootpath, 0777)
 }
 
+func (impl *repositoryImpl) SaveKey(key string) error {
+	impl.Lock()
+	defer impl.Unlock()
+
+	if err := impl.checkRootPath(); err != nil {
+		return err
+	}
+
+	path := filepath.Join(impl.rootpath, "peer", "peer.key")
+
+	if !isExist(filepath.Dir(path)) {
+		if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+			return err
+		}
+	}
+
+	return ioutil.WriteFile(path, []byte(key), 0777)
+}
+
 func (impl *repositoryImpl) PrivateKey() (key crypto.PrivKey, err error) {
 
 	impl.Lock()
@@ -86,6 +107,13 @@ func (impl *repositoryImpl) PrivateKey() (key crypto.PrivKey, err error) {
 
 		impl.DebugF("unmarshal private key ...")
 
+		buff, err = hex.DecodeString(string(buff))
+
+		if err != nil {
+			impl.DebugF("loading private key errr %s", err)
+			return nil, err
+		}
+
 		return crypto.UnmarshalPrivateKey(buff)
 	}
 
@@ -108,6 +136,8 @@ func (impl *repositoryImpl) PrivateKey() (key crypto.PrivKey, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	buff = []byte(hex.EncodeToString(buff))
 
 	if err := ioutil.WriteFile(path, buff, 0777); err != nil {
 		return nil, err

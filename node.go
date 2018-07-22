@@ -68,6 +68,14 @@ func New(ctx context.Context, config config.Config) (Node, error) {
 		return nil, err
 	}
 
+	pk := config.Get("mesh", "libp2p", "key").String("")
+
+	if pk != "" {
+		if err := node.repo.SaveKey(pk); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := node.createHost(config); err != nil {
 		node.ErrorF("open libp2p host err: %s", err)
 		return nil, err
